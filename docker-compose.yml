@@ -1,0 +1,73 @@
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: studyshop-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - studyshop-data:/var/opt/mssql
+    networks:
+      - studyshop-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # .NET 9 API Backend (CQRS + Minimal API)
+  api:
+    build:
+      context: .
+      dockerfile: StudyShop.Api/Dockerfile
+    container_name: studyshop-api
+    ports:
+      - "5170:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - AllowedOrigins=http://localhost:4200;http://localhost:80
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=StudyShopDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=True
+    networks:
+      - studyshop-network
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Angular Frontend
+  ui:
+    build:
+      context: ./studyshop-ui
+      dockerfile: Dockerfile
+    container_name: studyshop-ui
+    ports:
+      - "4200:80"
+    depends_on:
+      - api
+    environment:
+      # This will be used when regenerating API client inside container
+      - API_BASE_URL=http://api:8080
+    networks:
+      - studyshop-network
+    volumes:
+      # Mount API client directory for development (optional)
+      - ./studyshop-ui/src/app/api:/usr/share/nginx/html/assets/api
+
+networks:
+  studyshop-network:
+    driver: bridge
+
+volumes:
+  studyshop-data:
+

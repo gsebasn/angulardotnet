@@ -1,0 +1,121 @@
+# ==============================
+# Root .gitignore for AngularDotNet
+# Covers: .NET API, Angular UI, Node, Docker, macOS, IDEs
+# ==============================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node / Angular (UI)
+studyshop-ui/node_modules/
+studyshop-ui/dist/
+studyshop-ui/.angular/
+studyshop-ui/npm-debug.log*
+studyshop-ui/yarn-debug.log*
+studyshop-ui/yarn-error.log*
+studyshop-ui/pnpm-debug.log*
+
+# Optional: ignore generated API client (uncomment if you don't want to commit it)
+# studyshop-ui/src/app/api/
+
+# .NET build artifacts
+**/bin/
+**/obj/
+**/*.user
+**/*.rsuser
+**/*.suo
+**/*.cache
+**/*.pdb
+**/*.mdb
+**/*.log
+
+# EF Core Migrations bundles (if any)
+**/Migrations/*.Designer.cs
+
+# Logs
+logs/
+**/*.log
+
+# Docker
+docker/*.pid
+docker/*.log
+*.pid
+
+# Environment / secrets (if used)
+.env
+.env.*
+!.env.example
+
+# Coverage / test outputs
+coverage/
+TestResults/
+**/TestResult*/
+
+# OS / misc
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Always include Markdown and shell scripts
+!*.md
+!**/*.md
+!*.MD
+!**/*.MD
+!*.sh
+!**/*.sh
+
+## Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.cache
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+bin/
+obj/
+
+## NuGet
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+
+## .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## SQLite database
+*.db
+*.db-shm
+*.db-wal
+
+## Node modules (Angular)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+## Angular build
+dist/
+.tmp/
+
+## OS
+.DS_Store
+Thumbs.db
+

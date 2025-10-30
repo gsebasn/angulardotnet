@@ -1,0 +1,12 @@
+{
+  "name": "studyshop-root",
+  "version": "1.0.0",
+  "description": "StudyShop Root - Full Stack Learning Project",
+  "scripts": {
+    "export:swagger": "node export-swagger.js",
+    "export:swagger:ps1": "powershell -ExecutionPolicy Bypass -File StudyShop.Api/Scripts/Export-Swagger.ps1",
+    "export:swagger:sh": "bash StudyShop.Api/Scripts/export-swagger.sh"
+  },
+  "private": true
+}
+

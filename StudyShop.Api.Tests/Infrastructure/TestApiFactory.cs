@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using StudyShop.Api.Data;
+using StudyShop.Infrastructure.Data;
 
 namespace StudyShop.Api.Tests.Infrastructure;
 

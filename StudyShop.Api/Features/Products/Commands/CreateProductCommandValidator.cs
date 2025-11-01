@@ -1,4 +1,5 @@
 using FluentValidation;
+using StudyShop.Application.Features.Products.Commands;
 
 namespace StudyShop.Api.Features.Products.Commands;
 

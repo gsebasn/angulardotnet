@@ -1,6 +1,6 @@
-# StudyShop API - .NET 9 Web API (CQRS + Minimal API)
+# StudyShop API - Clean Architecture + Vertical Slices
 
-Backend API for the StudyShop learning project with modern CQRS architecture.
+Backend API for the StudyShop learning project demonstrating **Clean Architecture** with **Vertical Slices**, **CQRS**, and **AI/RAG** capabilities.
 
 ## Quick Start
 
@@ -17,74 +17,65 @@ dotnet run
 # - Swagger JSON: http://localhost:5170/swagger/v1/swagger.json
 ```
 
+## Architecture Overview
+
+The solution follows **Clean Architecture** with **Vertical Slices**:
+
+```
+StudyShop.Domain          # Pure business entities (no dependencies)
+StudyShop.Application     # Business logic & use cases (Vertical Slices)
+StudyShop.Infrastructure  # External dependencies (EF Core, AI, DB)
+StudyShop.Api            # Presentation layer (Minimal API endpoints)
+```
+
+### Project Structure
+
+```
+StudyShop.Api/                    # Presentation Layer
+├── Endpoints/                    # API endpoint mappings
+│   ├── ProductsEndpoints.cs
+│   ├── OrdersEndpoints.cs
+│   └── AiEndpoints.cs           # AI/RAG endpoints
+└── Program.cs                    # Startup & DI configuration
+
+StudyShop.Application/            # Application Layer
+├── Features/                     # Vertical Slices
+│   ├── Products/
+│   │   ├── Commands/            # CreateProduct, UpdateProduct, DeleteProduct
+│   │   ├── Queries/             # GetProducts, GetProductById
+│   │   └── Behaviors/           # Caching, Invalidation
+│   └── Orders/
+│       ├── Commands/             # CreateOrder
+│       └── Queries/              # GetOrders, GetOrderById
+├── DTOs/                         # Data Transfer Objects
+├── Validators/                   # FluentValidation rules
+├── Common/                       # Exceptions
+├── Data/                         # IAppDbContext interface
+└── Ai/                           # AI service interfaces
+
+StudyShop.Domain/                 # Domain Layer
+└── Models/                       # Product, Order, OrderItem entities
+
+StudyShop.Infrastructure/         # Infrastructure Layer
+├── Data/
+│   └── StudyShopDbContext.cs     # EF Core (implements IAppDbContext)
+├── Ai/
+│   └── OllamaAndVector.cs        # Ollama client, pgvector store
+└── DependencyInjection.cs         # Service registration
+```
+
 ## Features
 
-- ✅ .NET 9 Web API
-- ✅ **CQRS Pattern** - Commands and Queries separated
-- ✅ **Minimal API** - Modern endpoint registration
+- ✅ **Clean Architecture** - Domain/Application/Infrastructure separation
+- ✅ **Vertical Slices** - Feature-based organization
+- ✅ **CQRS Pattern** - Commands (writes) and Queries (reads) separated
 - ✅ **MediatR** - Mediator pattern for CQRS
-- ✅ Swagger/OpenAPI v3 documentation
-- ✅ EF Core 9.0 with InMemory database (easily switchable to SQLite)
-- ✅ FluentValidation for request validation
-- ✅ CORS configured for Angular on port 4200
-- ✅ Global exception handling (RFC 7807 ProblemDetails)
-- ✅ Auto-seeded sample products
-- ✅ Feature-based organization
-
-## Database
-
-### InMemory (Default)
-
-No setup required. Data is stored in memory and lost when the app restarts.
-
-### SQLite (Persistent)
-
-1. Edit `Program.cs` to switch from InMemory to SQLite:
-   ```csharp
-   options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
-   ```
-
-2. Run migrations:
-   ```bash
-   dotnet ef migrations add InitialCreate
-   dotnet ef database update
-   ```
-
-## Project Structure
-
-```
-StudyShop.Api/
-├── Features/                    # CQRS pattern - feature-based organization
-│   ├── Products/
-│   │   ├── Commands/           # Write operations
-│   │   │   ├── CreateProductCommand.cs
-│   │   │   ├── CreateProductCommandHandler.cs
-│   │   │   ├── UpdateProductCommand.cs
-│   │   │   ├── UpdateProductCommandHandler.cs
-│   │   │   └── DeleteProductCommand.cs
-│   │   └── Queries/            # Read operations
-│   │       ├── GetProductsQuery.cs
-│   │       └── GetProductByIdQuery.cs
-│   └── Orders/
-│       ├── Commands/
-│       │   └── CreateOrderCommand.cs
-│       └── Queries/
-│           ├── GetOrdersQuery.cs
-│           └── GetOrderByIdQuery.cs
-├── Models/
-│   ├── Product.cs              # Product entity
-│   └── Order.cs                # Order and OrderItem entities
-├── DTOs/
-│   ├── ProductDto.cs           # Data transfer objects
-│   └── OrderDto.cs
-├── Controllers/                # Legacy controllers (deprecated)
-│   ├── ProductsController.cs
-│   └── OrdersController.cs
-├── Data/
-│   └── StudyShopDbContext.cs   # EF Core DbContext
-├── appsettings.json
-└── Program.cs                  # Minimal API endpoints + CQRS setup
-```
+- ✅ **Minimal API** - Modern .NET 9 endpoint registration
+- ✅ **Swagger/OpenAPI v3** - Auto-generated API docs
+- ✅ **EF Core 9.0** - SQL Server with migrations
+- ✅ **FluentValidation** - Server-side validation
+- ✅ **Caching** - Memory cache with pipeline behaviors
+- ✅ **AI/RAG** - Semantic search with Ollama + pgvector
 
 ## API Endpoints
 
@@ -111,6 +102,49 @@ StudyShop.Api/
 | GET | /api/orders/{id} | Get single order |
 | POST | /api/orders | Create (validates stock, computes total) |
 
+### AI/RAG
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/ai/search?q=... | Semantic product search |
+| POST | /api/ai/answer | RAG-based Q&A |
+
+## Database Configuration
+
+### SQL Server (Default in Docker)
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=sqlserver,1433;Database=StudyShopDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True"
+  }
+}
+```
+
+### Vector Store (PostgreSQL + pgvector)
+
+```json
+{
+  "VectorStore": {
+    "ConnectionString": "Host=postgres;Port=5432;Database=studyshop;Username=postgres;Password=postgres"
+  }
+}
+```
+
+## AI/RAG Configuration
+
+Edit `appsettings.json`:
+
+```json
+{
+  "LLM": {
+    "BaseUrl": "http://ollama:11434",
+    "ChatModel": "llama3.2:3b",
+    "EmbeddingModel": "bge-m3"
+  }
+}
+```
+
 ## Validation Rules
 
 ### Product
@@ -119,12 +153,11 @@ StudyShop.Api/
 - Stock: Required, >= 0
 
 ### Order
-- OrderNumber: Required, max 50 characters
+- OrderNumber: Required
 - Items: At least one item required
 - Each Item:
-  - ProductId: Required, > 0
-  - Quantity: Required, >= 1
-- Stock: Must be >= requested quantity
+  - ProductId: Required, must exist
+  - Quantity: Required, >= 1, must not exceed stock
 
 ## Error Handling
 
@@ -147,107 +180,99 @@ Validation errors return:
 }
 ```
 
-## Seeded Data
-
-On startup, 5 sample products are automatically created:
-1. Laptop Computer - $999.99 - Stock: 15
-2. Wireless Mouse - $29.99 - Stock: 50
-3. Mechanical Keyboard - $89.99 - Stock: 30
-4. 4K Monitor - $349.99 - Stock: 10
-5. USB-C Cable - $12.99 - Stock: 100
-
 ## Development
 
-### Add New Endpoints (CQRS Pattern)
+### Adding a New Feature (Vertical Slice)
 
-1. Create Command or Query in `Features/YourFeature/` folder
-2. Create Handler implementing `IRequestHandler<TCommand/Query, TResult>`
-3. Create Validator for commands using FluentValidation
-4. Register endpoint in `Program.cs` using Minimal API
-5. Add XML comments for Swagger documentation
-6. Mark with `.WithName()` and `.WithDescription()` for OpenAPI docs
+1. **Create Domain Entity** (if needed):
+   ```csharp
+   // StudyShop.Domain/Models/Category.cs
+   public class Category
+   {
+       public int Id { get; set; }
+       public string Name { get; set; } = string.Empty;
+   }
+   ```
 
-**Example:**
+2. **Create Application Slice**:
+   ```
+   StudyShop.Application/Features/Categories/
+   ├── Commands/
+   │   ├── CreateCategoryCommand.cs
+   │   └── CreateCategoryCommandHandler.cs
+   ├── Queries/
+   │   ├── GetCategoriesQuery.cs
+   │   └── GetCategoriesQueryHandler.cs
+   ```
+
+3. **Add DTO**:
+   ```csharp
+   // StudyShop.Application/DTOs/CategoryDto.cs
+   public class CategoryDto { ... }
+   ```
+
+4. **Add Validator**:
+   ```csharp
+   // StudyShop.Application/Validators/CreateCategoryDtoValidator.cs
+   public class CreateCategoryDtoValidator : AbstractValidator<CreateCategoryDto> { ... }
+   ```
+
+5. **Create Endpoint**:
+   ```csharp
+   // StudyShop.Api/Endpoints/CategoriesEndpoints.cs
+   public static class CategoriesEndpoints
+   {
+       public static void MapCategoriesEndpoints(this WebApplication app)
+       {
+           var group = app.MapGroup("api/categories");
+           group.MapGet("/", async (IMediator mediator) => { ... });
+           group.MapPost("/", async (IMediator mediator, CreateCategoryCommand cmd) => { ... });
+       }
+   }
+   ```
+
+6. **Register in Program.cs**:
+   ```csharp
+   app.MapCategoriesEndpoints();
+   ```
+
+### Dependency Injection
+
+Infrastructure services are registered via `AddInfrastructure()`:
 
 ```csharp
-// Command
-public record CreateCategoryCommand : IRequest<CategoryDto>
-{
-    public string Name { get; init; }
-}
-
-// Handler
-public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryCommand, CategoryDto>
-{
-    // Implementation
-}
-
-// Endpoint in Program.cs
-apiGroup.MapPost("/categories", async (IMediator mediator, CreateCategoryCommand command) =>
-{
-    var category = await mediator.Send(command);
-    return Results.Created($"/api/categories/{category.Id}", category);
-});
+// Program.cs
+builder.Services.AddInfrastructure(builder.Configuration);
 ```
 
-### Enable SQLite
+This registers:
+- EF Core DbContext
+- AI services (Ollama, Vector Store)
+- Background services (Indexer)
 
-Edit `Program.cs`:
+## Caching
 
-```csharp
-builder.Services.AddDbContext<StudyShopDbContext>(options =>
-{
-    // Comment this line:
-    // options.UseInMemoryDatabase("StudyShopDb");
-    
-    // Uncomment this line:
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
-```
+Product queries are cached using MediatR pipeline behaviors:
 
-Then run:
-```bash
-dotnet ef migrations add InitialCreate
-dotnet ef database update
-```
+- **QueryCachingBehavior**: Caches query results (5 min absolute, 2 min sliding)
+- **CacheInvalidationBehavior**: Clears cache on product mutations
+
+## Testing
+
+See `StudyShop.Api.Tests/` for:
+- **Integration Tests**: Test API endpoints end-to-end
+- **Unit Tests**: Test handlers in isolation
 
 ## Dependencies
 
-- Microsoft.AspNetCore.App (included in .NET 9 SDK)
-- MediatR ^12.4.0 - CQRS mediator pattern
-- FluentValidation.AspNetCore ^11.3.0
-- Swashbuckle.AspNetCore ^6.8.1
-- Microsoft.EntityFrameworkCore.InMemory ^9.0.0 (or SQLite)
-- Microsoft.EntityFrameworkCore.Sqlite ^9.0.0
+- **MediatR** ^12.4.0 - CQRS mediator
+- **FluentValidation** ^11.9.2 - Validation
+- **Swashbuckle.AspNetCore** ^6.8.1 - Swagger
+- **EF Core 9.0** - Database access
+- **Npgsql** ^8.0.3 - PostgreSQL driver
+- **Pgvector** ^0.2.1 - Vector similarity search
 
-## Architecture
+## See Also
 
-### CQRS Pattern
-
-**Commands (Write Operations)**
-- `CreateProductCommand` - Create new product
-- `UpdateProductCommand` - Update existing product
-- `DeleteProductCommand` - Delete product
-- `CreateOrderCommand` - Create new order
-
-**Queries (Read Operations)**
-- `GetProductsQuery` - List all products (with search & pagination)
-- `GetProductByIdQuery` - Get single product
-- `GetOrdersQuery` - List all orders
-- `GetOrderByIdQuery` - Get single order
-
-### MediatR Integration
-
-All commands and queries are sent through MediatR:
-
-```csharp
-var query = new GetProductsQuery { Search = searchTerm, Skip = skip, Take = take };
-var products = await mediator.Send(query);
-```
-
-### Minimal API Endpoints
-
-Endpoints are registered in `Program.cs` using `.MapGet()`, `.MapPost()`, etc.
-
-See [CQRS-REFACTOR.md](CQRS-REFACTOR.md) for detailed architecture documentation.
-
+- **[ARCHITECTURE.md](../ARCHITECTURE.md)** - Detailed architecture documentation
+- **[README.md](../README.md)** - Project overview

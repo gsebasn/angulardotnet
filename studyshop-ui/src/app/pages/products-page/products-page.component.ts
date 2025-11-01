@@ -1,7 +1,8 @@
 import { Component, OnInit, Inject } from '@angular/core';
+import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -25,6 +26,8 @@ import { Product } from '../../api/models';
   standalone: true,
   imports: [
     CommonModule,
+    HttpClientModule,
+    FormsModule,
     ReactiveFormsModule,
     MatTableModule,
     MatButtonModule,
@@ -50,6 +53,23 @@ import { Product } from '../../api/models';
         <input matInput (input)="onSearch($event)" placeholder="Enter product name...">
         <mat-icon matPrefix>search</mat-icon>
       </mat-form-field>
+
+      <!-- Semantic AI Search -->
+      <mat-form-field appearance="outline" style="width: 100%; margin-bottom: 8px;">
+        <mat-label>Semantic search (AI)</mat-label>
+        <input matInput [(ngModel)]="aiQuery" placeholder="Ask in natural language...">
+        <mat-icon matPrefix>psychology</mat-icon>
+      </mat-form-field>
+      <div style="margin-bottom:16px; display:flex; gap:8px;">
+        <button mat-stroked-button color="primary" (click)="runAiSearch()">Ask</button>
+        <span *ngIf="aiResults?.length">Top matches: {{ aiResults.length }}</span>
+      </div>
+      <div *ngIf="aiResults?.length" style="margin-bottom:16px;">
+        <div *ngFor="let r of aiResults" style="font-size: 12px; color:#555; margin-bottom:6px;">
+          <strong>#{{ r.productId }}</strong> — score: {{ r.score | number:'1.2-2' }}
+          <div>{{ r.content }}</div>
+        </div>
+      </div>
 
       <!-- Products Table -->
       <table mat-table [dataSource]="products" class="products-table">
@@ -113,15 +133,32 @@ export class ProductsPageComponent implements OnInit {
   displayedColumns = ['name', 'price', 'stock', 'createdUtc', 'actions'];
   products: Product[] = [];
   searchTerm = '';
+  aiQuery = '';
+  aiResults: Array<{ productId: number; content: string; score: number }> = [];
 
   constructor(
     private productsService: ProductsService,
+    private http: HttpClient,
     private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {}
 
   ngOnInit() {
     this.loadProducts();
+  }
+
+  runAiSearch() {
+    const q = this.aiQuery?.trim();
+    if (!q) return;
+    this.http.post<any>('/api/ai/search', null, { params: { q } }).subscribe({
+      next: (res) => {
+        this.aiResults = res?.results || [];
+      },
+      error: (err) => {
+        this.snackBar.open('AI search failed', 'Close', { duration: 3000 });
+        console.error(err);
+      }
+    });
   }
 
   loadProducts() {

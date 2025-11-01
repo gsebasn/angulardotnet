@@ -2,11 +2,11 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using StudyShop.Api.Data;
-using StudyShop.Api.DTOs;
-using StudyShop.Api.Features.Products.Commands;
-using StudyShop.Api.Features.Products.Queries;
-using StudyShop.Api.Models;
+using StudyShop.Infrastructure.Data;
+using StudyShop.Application.DTOs;
+using StudyShop.Application.Features.Products.Commands;
+using StudyShop.Application.Features.Products.Queries;
+using StudyShop.Domain.Models;
 using FluentValidation;
 using Xunit;
 

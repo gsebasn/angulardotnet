@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using Xunit;
 using FluentAssertions;
-using StudyShop.Api.DTOs;
+using StudyShop.Application.DTOs;
 using StudyShop.Api.Tests.Infrastructure;
 
 namespace StudyShop.Api.Tests.Integration;

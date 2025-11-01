@@ -1,8 +1,8 @@
 using MediatR;
-using StudyShop.Api.DTOs;
-using StudyShop.Api.Features.Orders.Commands;
-using StudyShop.Api.Features.Orders.Queries;
-using StudyShop.Api.Features.Products.Commands; // For exceptions
+using StudyShop.Application.DTOs;
+using StudyShop.Application.Common;
+using StudyShop.Application.Features.Orders.Commands;
+using StudyShop.Application.Features.Orders.Queries;
 
 namespace StudyShop.Api.Endpoints;
 

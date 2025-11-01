@@ -1,36 +1,149 @@
 # StudyShop - Full-Stack Learning Project
 
-A simple, clean learning project demonstrating end-to-end API→UI integration with code generation.
+A modern full-stack e-commerce demo showcasing **Clean Architecture** with **Vertical Slices**, **CQRS**, AI-powered semantic search (RAG), and automated code generation.
 
 ## 🎯 Project Goals
 
-- **Backend**: .NET 9 Web API with CQRS + Minimal API, Swagger (OpenAPI v3), EF Core (InMemory/SQLite), FluentValidation
-- **Frontend**: Angular 17+ with Material UI and auto-generated typed services from backend's Swagger JSON
-- **Code Generation**: One-command script to regenerate TypeScript client from Swagger spec
-- **Educational**: Clear structure, comments, and step-by-step instructions
+- **Backend**: .NET 9 Web API with Clean Architecture (Domain/Application/Infrastructure) + Vertical Slices + CQRS
+- **AI/RAG**: Local LLM (Ollama) with semantic product search using pgvector
+- **Frontend**: Angular 17+ with Material UI and auto-generated typed services
+- **Architecture**: Clean Architecture principles with Vertical Slices for maintainability
+- **Code Generation**: One-command script to regenerate TypeScript client from Swagger
 
-## 🏗️ Architecture
+## 🏗️ Architecture Overview
+
+### Clean Architecture + Vertical Slices
+
+The project follows **Clean Architecture** principles with **Vertical Slices** pattern:
 
 ```
 StudyShop/
-├── StudyShop.Api/          # .NET 9 Web API backend (CQRS + Minimal API)
-│   ├── Features/            # Feature-based CQRS organization
-│   │   ├── Products/
-│   │   │   ├── Commands/    # CreateProduct, UpdateProduct, DeleteProduct
-│   │   │   └── Queries/     # GetProducts, GetProductById
-│   │   └── Orders/
-│   │       ├── Commands/    # CreateOrder
-│   │       └── Queries/     # GetOrders, GetOrderById
-│   ├── Models/              # Entities (Product, Order, OrderItem)
-│   ├── DTOs/                # Data Transfer Objects
-│   └── Program.cs           # Minimal API endpoints + configuration
+├── StudyShop.Domain/              # Core Business Entities (unchanged)
+│   └── Models/
+│       ├── Product.cs
+│       ├── Order.cs
+│       └── OrderItem.cs
 │
-└── studyshop-ui/            # Angular 17+ frontend
+├── StudyShop.Application/          # Business Logic & Use Cases
+│   ├── Features/                   # Vertical Slices
+│   │   ├── Products/
+│   │   │   ├── Commands/          # CreateProduct, UpdateProduct, DeleteProduct
+│   │   │   ├── Queries/           # GetProducts, GetProductById
+│   │   │   └── Behaviors/         # Caching, Validation
+│   │   └── Orders/
+│   │       ├── Commands/          # CreateOrder
+│   │       └── Queries/           # GetOrders, GetOrderById
+│   ├── DTOs/                      # Data Transfer Objects
+│   ├── Validators/                # FluentValidation rules
+│   ├── Common/                    # Exceptions, shared logic
+│   └── Data/                      # IAppDbContext interface
+│
+├── StudyShop.Infrastructure/      # External Dependencies (unchanged)
+│   ├── Data/
+│   │   └── StudyShopDbContext.cs  # EF Core DbContext (implements IAppDbContext)
+│   ├── Ai/
+│   │   └── OllamaAndVector.cs     # Ollama client, pgvector store
+│   └── DependencyInjection.cs     # Service registration
+│
+├── StudyShop.Api/                 # Presentation Layer (Minimal API)
+│   ├── Endpoints/                 # API endpoint mappings
+│   │   ├── ProductsEndpoints.cs
+│   │   ├── OrdersEndpoints.cs
+│   │   └── AiEndpoints.cs        # /ai/search, /ai/answer
+│   └── Program.cs                 # Startup & configuration
+│
+├── StudyShop.Api.Tests/           # Integration & Unit Tests
+│   ├── Integration/
+│   └── Unit/
+│
+└── studyshop-ui/                  # Angular 17+ Frontend
     ├── src/app/
-    │   ├── pages/           # ProductsPage, OrdersPage
-    │   └── api/             # Generated TypeScript client (do not edit)
-    └── package.json         # npm scripts for code generation
+    │   ├── pages/                  # ProductsPage, OrdersPage
+    │   └── api/                     # Generated TypeScript client
+    └── package.json
 ```
+
+### Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "Presentation Layer"
+        UI[Angular UI<br/>Port 4200]
+        API[StudyShop.Api<br/>Minimal API Endpoints<br/>Port 5170]
+    end
+    
+    subgraph "Application Layer (Vertical Slices)"
+        APP[StudyShop.Application]
+        PROD[Products Slice<br/>Commands/Queries/Handlers]
+        ORD[Orders Slice<br/>Commands/Queries/Handlers]
+        DTO[DTOs & Validators]
+        COMMON[Common Exceptions]
+    end
+    
+    subgraph "Domain Layer"
+        DOMAIN[StudyShop.Domain]
+        ENTITIES[Entities<br/>Product, Order, OrderItem]
+    end
+    
+    subgraph "Infrastructure Layer"
+        INFRA[StudyShop.Infrastructure]
+        DB[(SQL Server<br/>Port 1433)]
+        PG[(PostgreSQL + pgvector<br/>Port 5432)]
+        EF[EF Core DbContext]
+        OLLAMA[Ollama LLM<br/>Port 11434]
+        VECTOR[Vector Store<br/>Embeddings]
+    end
+    
+    UI -->|HTTP| API
+    API -->|MediatR| PROD
+    API -->|MediatR| ORD
+    API -->|Direct| APP
+    
+    PROD -->|IAppDbContext| EF
+    ORD -->|IAppDbContext| EF
+    PROD -->|Dependencies| DTO
+    ORD -->|Dependencies| DTO
+    
+    EF -->|Implements| APP
+    EF -->|Query/Write| DB
+    
+    PROD -.->|AI Search| VECTOR
+    VECTOR -->|Stores| PG
+    VECTOR -->|Generates| OLLAMA
+    
+    EF -->|Uses| ENTITIES
+    APP -->|References| ENTITIES
+    
+    style UI fill:#42b983
+    style API fill:#42b983
+    style APP fill:#3498db
+    style PROD fill:#3498db
+    style ORD fill:#3498db
+    style DOMAIN fill:#e74c3c
+    style INFRA fill:#f39c12
+    style DB fill:#95a5a6
+    style PG fill:#95a5a6
+    style OLLAMA fill:#9b59b6
+```
+
+### Dependency Flow
+
+```
+Presentation (API)
+    ↓ depends on
+Application (Business Logic)
+    ↓ depends on
+Domain (Entities)
+    ↑ implements
+Infrastructure (EF, AI, External Services)
+```
+
+**Key Principles:**
+- ✅ **Domain** has no dependencies (pure business logic)
+- ✅ **Application** depends only on Domain (defines interfaces)
+- ✅ **Infrastructure** implements Application interfaces
+- ✅ **Presentation** depends on Application (uses MediatR, DTOs)
+- ✅ **Vertical Slices** organize features by business capability (Products, Orders, AI)
 
 ## 🚀 Quick Start
 
@@ -39,724 +152,197 @@ StudyShop/
 - **.NET 9 SDK**: [Download](https://dotnet.microsoft.com/download/dotnet/9.0)
 - **Node.js 18+**: [Download](https://nodejs.org/)
 - **Angular CLI**: `npm install -g @angular/cli`
+- **Docker Desktop** (for AI/RAG features)
 
-### Step 1: Start the Backend
+### Step 1: Start with Docker (Recommended)
 
 ```bash
-# Navigate to backend
-cd StudyShop.Api
+# From project root
+docker compose up -d --build
 
-# Restore packages and run
+# Pull Ollama models (first time only)
+curl -X POST http://localhost:11434/api/pull -d '{"name":"llama3.2:3b"}'
+curl -X POST http://localhost:11434/api/pull -d '{"name":"bge-m3"}'
+```
+
+This starts:
+- ✅ SQL Server (port 1433)
+- ✅ PostgreSQL + pgvector (port 5432)
+- ✅ Ollama LLM (port 11434)
+- ✅ .NET 9 API (port 5170)
+- ✅ Angular UI (port 4200)
+
+### Step 2: Start Locally (Alternative)
+
+#### Backend
+```bash
+cd StudyShop.Api
 dotnet restore
 dotnet run
-
-# Backend will be running at http://localhost:5170
-# Swagger UI: http://localhost:5170/swagger
+# API: http://localhost:5170
+# Swagger: http://localhost:5170/swagger
 ```
 
-**Expected output:**
-```
-✓ Seeded initial products
-API:      http://localhost:5170
-Swagger:  http://localhost:5170/swagger
-```
-
-### Step 2: Start the Frontend
-
+#### Frontend
 ```bash
-# Open a NEW terminal (keep backend running)
-
-# Navigate to frontend
 cd studyshop-ui
-
-# Install dependencies
 npm install
-
-# Generate TypeScript API client from Swagger
-npm run gen:api
-
-# Start Angular dev server
+npm run gen:api  # Generate TypeScript client
 npm start
-
-# Frontend will be running at http://localhost:4200
+# UI: http://localhost:4200
 ```
 
-### Step 3: Try It Out
+## 🧠 AI/RAG Features
 
-1. **Navigate to Products page**
-   - View seeded products
-   - Search by name
-   - Create/Edit/Delete products
-   - See validation errors
+### Semantic Search
 
-2. **Create an Order**
-   - Go to Orders page
-   - Click "New Order"
-   - Select products and quantities
-   - Submit (server validates stock availability)
-   - View order total
+- **Natural Language Queries**: "Find laptops under $1000"
+- **Vector Similarity**: Uses pgvector for semantic matching
+- **Embeddings**: Generated by Ollama (bge-m3 model)
+- **Real-time Indexing**: Products automatically embedded on create/update
 
-## 🐳 Docker Deployment (Alternative)
+### Endpoints
 
-### Prerequisites
-
-- **Docker Desktop** installed and running
-- At least 4GB of RAM available for Docker
-
-### Quick Start with Docker
-
-#### 1. Build and Start All Services
-
-```bash
-# From the project root directory
-docker-compose up --build
+```
+POST /api/ai/search?q=laptops       # Semantic product search
+POST /api/ai/answer                 # RAG-based Q&A
 ```
 
-This will:
-- Build the .NET 9 API image (multi-stage build)
-- Build the Angular UI image with Nginx
-- Start both containers
-- Automatically seed the database
-
-#### 2. Run in Background (Detached Mode)
-
-```bash
-docker-compose up -d --build
-```
-
-#### 3. Access the Application
-
-Once containers are running:
-
-- **API**: http://localhost:5170 (✅ Currently Running)
-- **Angular UI**: http://localhost:4200 (✅ Currently Running)
-- **Swagger**: Disabled in production for security
-
-**Verify it's working:**
-```bash
-# Test API
-curl http://localhost:5170/api/products
-
-# Test UI
-curl -I http://localhost:4200
-```
-
-## 🐳 Complete Docker Compose Commands
-
-### Lifecycle Management
-
-#### Start Services
-
-```bash
-# Build and start all services (foreground)
-docker-compose up --build
-
-# Build and start in background (detached)
-docker-compose up -d --build
-
-# Start without rebuilding (if already built)
-docker-compose up
-
-# Start only specific service
-docker-compose up api       # Start only API
-docker-compose up ui        # Start only UI
-```
-
-#### Stop Services
-
-```bash
-# Stop containers (keeps containers)
-docker-compose stop
-
-# Stop specific service
-docker-compose stop api     # Stop only API
-docker-compose stop ui      # Stop only UI
-
-# Stop and remove containers (keeps volumes)
-docker-compose down
-
-# Stop and remove containers + volumes (⚠️ deletes data)
-docker-compose down -v
-
-# Stop, remove containers and images
-docker-compose down --rmi all
-```
-
-#### Restart Services
-
-```bash
-# Restart all services
-docker-compose restart
-
-# Restart specific service
-docker-compose restart api
-docker-compose restart ui
-
-# Restart and rebuild
-docker-compose up --build -d
-
-# Restart with fresh containers (recreate)
-docker-compose up --force-recreate
-```
-
-#### Pause/Unpause
-
-```bash
-# Pause all services (keeps resources but stops processing)
-docker-compose pause
-
-# Unpause all services
-docker-compose unpause
-
-# Pause specific service
-docker-compose pause api
-```
-
-### Viewing Status and Logs
-
-#### View Running Containers
-
-```bash
-# List running containers
-docker-compose ps
-
-# List all containers (including stopped)
-docker-compose ps -a
-
-# Or use Docker directly
-docker ps
-
-# Show container IDs only
-docker-compose ps -q
-```
-
-#### View Logs
-
-```bash
-# View logs from all services (follow mode)
-docker-compose logs -f
-
-# View logs from specific service
-docker-compose logs -f api    # Backend logs
-docker-compose logs -f ui     # Frontend logs
-
-# View last N lines
-docker-compose logs --tail=50     # Last 50 lines
-docker-compose logs --tail=100    # Last 100 lines
-docker-compose logs --tail=1000   # Last 1000 lines
-
-# View logs without follow
-docker-compose logs
-
-# View logs with timestamps
-docker-compose logs -t
-
-# View logs since timestamp
-docker-compose logs --since="2024-01-01T00:00:00"
-```
-
-### Rebuilding and Updating
-
-#### Rebuild After Code Changes
-
-```bash
-# Rebuild images and restart
-docker-compose up --build --force-recreate
-
-# Rebuild without cache (clean build)
-docker-compose build --no-cache
-docker-compose up
-
-# Rebuild specific service
-docker-compose build api    # Rebuild only API
-docker-compose build ui     # Rebuild only UI
-
-# Rebuild and start in one command
-docker-compose up --build
-```
-
-#### Update and Pull Images
-
-```bash
-# Pull latest images
-docker-compose pull
-
-# Pull and restart
-docker-compose pull && docker-compose up -d
-```
-
-### Container Management
-
-#### Execute Commands in Containers
-
-```bash
-# Enter API container shell
-docker-compose exec api sh
-
-# Enter UI container shell
-docker-compose exec ui sh
-
-# Run a command in container
-docker-compose exec api dotnet --version
-docker-compose exec api ls -la
-docker-compose exec ui ls -la
-
-# Run command as root
-docker-compose exec -u root api sh
-```
-
-#### Copy Files to/from Containers
-
-```bash
-# Copy file from container to host
-docker-compose cp api:/app/file.txt ./file.txt
-
-# Copy file from host to container
-docker-compose cp ./file.txt api:/app/file.txt
-
-# Copy directory
-docker-compose cp api:/app/data ./backup
-```
-
-### Health and Monitoring
-
-#### Check Container Health
-
-```bash
-# View health status
-docker-compose ps
-
-# Check specific container health
-docker inspect studyshop-api --format='{{.State.Health.Status}}'
-
-# View all container stats (live monitoring)
-docker stats
-```
-
-#### Debug and Troubleshoot
-
-```bash
-# View container config
-docker-compose config
-
-# Validate compose file
-docker-compose config --quiet
-
-# View environment variables
-docker-compose exec api env
-
-# Check networking
-docker network inspect angulardotnet_studyshop-network
-```
-
-### Cleanup Operations
-
-#### Remove Containers and Images
-
-```bash
-# Remove stopped containers
-docker-compose rm
-
-# Remove containers and volumes
-docker-compose down -v
-
-# Remove containers, volumes, and images
-docker-compose down -v --rmi all
-
-# Remove everything and clean system
-docker-compose down -v --rmi all
-docker system prune -a --volumes
-```
-
-#### Clean Build
-
-```bash
-# Stop and remove everything
-docker-compose down -v --rmi all
-
-# Remove build cache
-docker builder prune
-
-# Full clean rebuild
-docker-compose build --no-cache
-docker-compose up -d
-```
-
-### Docker Services
-
-The `docker-compose.yml` defines two services:
-
-#### 1. API Service (StudyShop.Api)
-- **Image**: .NET 9 runtime with ASP.NET Core
-- **Architecture**: CQRS + Minimal API
-- **Port**: 5170 → 8080
-- **Environment**: 
-  - InMemory database (seeded on startup)
-  - CORS enabled for UI
-- **Health Check**: Included
-
-#### 2. UI Service (studyshop-ui)
-- **Image**: Angular 17 + Nginx
-- **Port**: 4200 → 80
-- **Features**:
-  - Pre-built Angular app
-  - Served by Nginx
-  - API client generated during build
-
-### Docker Image Management
-
-#### List Images
-
-```bash
-# View StudyShop images
-docker images | grep studyshop
-```
-
-#### Remove Images
-
-```bash
-# Remove all StudyShop containers and images
-docker-compose down --rmi all
-
-# Clean up unused images
-docker image prune -a
-```
-
-#### View Image Details
-
-```bash
-# Inspect image
-docker inspect studyshop-api:latest
-docker inspect studyshop-ui:latest
-```
-
-### Troubleshooting Docker
-
-#### Port Already in Use
-
-```bash
-# Find process using port
-lsof -i :5170   # API port
-lsof -i :4200   # UI port
-
-# Kill process or change ports in docker-compose.yml
-```
-
-#### Can't Connect to API from UI
-
-```bash
-# Check if both containers are running
-docker-compose ps
-
-# Check API logs
-docker-compose logs api
-
-# Verify API is responding
-curl http://localhost:5170/swagger/v1/swagger.json
-```
-
-#### Container Won't Start
-
-```bash
-# Check logs for errors
-docker-compose logs
-
-# Check container status
-docker-compose ps -a
-
-# Remove and recreate
-docker-compose down -v
-docker-compose up --build
-```
-
-#### Out of Disk Space
-
-```bash
-# Clean up Docker system
-docker system prune -a --volumes
-
-# Remove unused images
-docker image prune -a
-```
-
-### Development Mode with Hot Reload
-
-For development with hot reload (optional):
-
-```bash
-# Use development override
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-```
-
-This enables:
-- Hot reload for API code changes
-- Live reload for UI changes
-- Source code mounted as volumes
-
-### Production Deployment
-
-#### Build for Production
-
-```bash
-# Build production images
-docker-compose build
-
-# Tag for registry (replace with your registry)
-docker tag studyshop-api your-registry/studyshop-api:v1.0
-docker tag studyshop-ui your-registry/studyshop-ui:v1.0
-
-# Push to registry
-docker push your-registry/studyshop-api:v1.0
-docker push your-registry/studyshop-ui:v1.0
-```
-
-#### Pull and Run on Server
-
-```bash
-# Pull images
-docker pull your-registry/studyshop-api:v1.0
-docker pull your-registry/studyshop-ui:v1.0
-
-# Run with production settings
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-### Docker Compose Files
-
-- **`docker-compose.yml`** - Main production configuration (✅ Currently Running)
-- **`docker-compose.dev.yml`** - Development with hot reload
-- **`DOCKER.md`** - Detailed Docker documentation
-
-### 🎉 Docker Status
-
-**Current Status:** ✅ **Running Successfully**
-
-- ✅ API container built and running (.NET 9)
-- ✅ UI container built and running (Angular 17)
-- ✅ API endpoints responding at http://localhost:5170
-- ✅ UI serving at http://localhost:4200
-- ✅ Products endpoint returning 5 seeded products
-
-**Check status:**
-```bash
-docker-compose ps
-```
-
-**View logs:**
-```bash
-docker-compose logs -f
-```
-
-### Resource Usage
-
-```bash
-# Monitor resource usage
-docker stats
-
-# Check container resource limits
-docker inspect <container-id> | grep -i memory
-```
-
-### Complete Cleanup
-
-```bash
-# Remove everything (⚠️ all data will be lost)
-docker-compose down -v --rmi all
-docker system prune -a --volumes
+### Configuration
+
+Edit `appsettings.json`:
+```json
+{
+  "LLM": {
+    "BaseUrl": "http://localhost:11434",
+    "ChatModel": "llama3.2:3b",
+    "EmbeddingModel": "bge-m3"
+  },
+  "VectorStore": {
+    "ConnectionString": "Host=postgres;Port=5432;Database=studyshop;Username=postgres;Password=postgres"
+  }
+}
 ```
 
 ## 📚 Key Features
 
 ### Backend (.NET 9)
 
+- ✅ **Clean Architecture** - Domain/Application/Infrastructure separation
+- ✅ **Vertical Slices** - Features organized by business capability
 - ✅ **CQRS Pattern** - Commands (writes) and Queries (reads) separated
+- ✅ **MediatR** - Mediator pattern for CQRS
 - ✅ **Minimal API** - Modern .NET 9 endpoint registration
-- ✅ **MediatR** - Mediator pattern for CQRS implementation
-- ✅ **Swagger/OpenAPI v3** - Full API documentation at `/swagger`
-- ✅ **EF Core 9.0** - InMemory database for quick demos (easily switch to SQLite)
-- ✅ **FluentValidation** - Server-side validation with clear error messages
-- ✅ **CORS** - Configured for Angular on port 4200
-- ✅ **ProblemDetails** - RFC 7807 compliant error responses
-- ✅ **Data Seeding** - Sample products on startup
-- ✅ **Pagination** - Products endpoint supports `skip` and `take`
-- ✅ **Feature-based Organization** - All related code in one place
+- ✅ **Swagger/OpenAPI v3** - Auto-generated API docs
+- ✅ **EF Core 9.0** - SQL Server with migrations
+- ✅ **FluentValidation** - Server-side validation
+- ✅ **Caching** - Memory cache with invalidation behaviors
+- ✅ **AI/RAG** - Semantic search with Ollama + pgvector
 
-#### API Endpoints
+### API Endpoints
 
 ```
-GET    /api/products          # List with optional ?search=xxx&skip=0&take=100
-GET    /api/products/{id}     # Get single product
-POST   /api/products          # Create (validates with FluentValidation)
-PUT    /api/products/{id}     # Update (partial update supported)
-DELETE /api/products/{id}      # Delete
+Products:
+GET    /api/products                # List (with search/pagination)
+GET    /api/products/{id}           # Get by ID
+POST   /api/products                # Create
+PUT    /api/products/{id}           # Update
+DELETE /api/products/{id}           # Delete
 
-GET    /api/orders            # List all orders
-GET    /api/orders/{id}       # Get single order
-POST   /api/orders            # Create (validates stock & computes total)
+Orders:
+GET    /api/orders                  # List all
+GET    /api/orders/{id}             # Get by ID
+POST   /api/orders                  # Create (validates stock)
+
+AI:
+POST   /api/ai/search?q=...         # Semantic search
+POST   /api/ai/answer               # RAG Q&A
 ```
 
 ### Frontend (Angular 17)
 
-- ✅ **Standalone Components** - Modern Angular without NgModules
-- ✅ **Angular Material** - Pre-built UI components
-- ✅ **Auto-generated Client** - TypeScript services from Swagger JSON
-- ✅ **Reactive Forms** - Client-side validation with Material
-- ✅ **Snackbars** - User feedback for success/error
-- ✅ **Search & Pagination** - Products search with real-time filtering
+- ✅ **Standalone Components** - Modern Angular
+- ✅ **Angular Material** - UI components
+- ✅ **Auto-generated Client** - TypeScript services from Swagger
+- ✅ **Semantic Search UI** - AI-powered product discovery
+- ✅ **Reactive Forms** - Client-side validation
 
-#### Components
+## 🧪 Testing
 
-- **ProductsPage** - Full CRUD with search
-- **OrdersPage** - Create orders with multiple items
-- **ProductDialog** - Create/Edit product modal
-- **Auto-generated Services** - Typed HttpClient wrappers
-
-## 🔧 Configuration
-
-### Backend (InMemory vs SQLite)
-
-**Default: InMemory** (fast, no setup)
-
-To switch to SQLite with persistence:
-
-1. Edit `StudyShop.Api/Program.cs`:
-   ```csharp
-   // Comment this line:
-   // options.UseInMemoryDatabase("StudyShopDb");
-   
-   // Uncomment this line:
-   options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
-   ```
-
-2. Run EF migrations:
-   ```bash
-   cd StudyShop.Api
-   dotnet ef migrations add InitialCreate
-   dotnet ef database update
-   ```
-
-### Frontend API URL
-
-Edit `studyshop-ui/src/app/environments/environment.ts` to change API base URL.
-
-### Code Generation
-
-Regenerate TypeScript client after backend changes:
+### Run Tests
 
 ```bash
-cd studyshop-ui
-npm run gen:api
+# From project root
+dotnet test StudyShop.Api.Tests/StudyShop.Api.Tests.csproj
 ```
 
-This runs `openapi-typescript-codegen` which:
-1. Reads `/swagger/v1/swagger.json` from backend
-2. Generates TypeScript models and services
-3. Outputs to `src/app/api/`
+### Test Structure
+
+- **Integration Tests**: Test API endpoints end-to-end
+- **Unit Tests**: Test MediatR handlers in isolation
 
 ## 📖 Learning Points
 
-1. **Swagger Integration**
-   - Auto-generated OpenAPI spec from Minimal API endpoints
-   - XML comments become Swagger documentation
-   - JSON schema for code generation
+1. **Clean Architecture**
+   - Domain layer is pure business logic (no dependencies)
+   - Application defines use cases and interfaces
+   - Infrastructure implements external concerns
+   - Presentation (API) orchestrates requests
 
-2. **Code Generation Workflow**
-   - Backend defines API contract (Swagger)
-   - Frontend generates client (TypeScript)
-   - Type safety end-to-end
+2. **Vertical Slices**
+   - Features grouped by business capability
+   - Each slice contains Commands, Queries, Handlers, Validators
+   - Easy to add new features without touching existing code
 
-3. **Validation**
-   - Client-side: Angular Reactive Forms
-   - Server-side: FluentValidation
-   - Consistent error messages
+3. **CQRS Pattern**
+   - Separates read (Queries) from write (Commands) operations
+   - Enables independent scaling and optimization
+   - Clear separation of concerns
 
-4. **API Design**
-   - RESTful endpoints
-   - Proper HTTP status codes (201, 400, 404, 500)
-   - ProblemDetails for errors (RFC 7807)
+4. **AI/RAG Implementation**
+   - Local LLM (Ollama) for embeddings and chat
+   - Vector database (pgvector) for semantic search
+   - Automatic product indexing on changes
 
-## 🧪 Testing the Application
+## 🔧 Configuration
 
-### Products Workflow
+### Database Connection
 
-1. View list of 5 seeded products
-2. Search for "Laptop"
-3. Create new product:
-   - Name: "SSD Drive"
-   - Price: 79.99
-   - Stock: 25
-4. Edit "USB-C Cable" price to 9.99
-5. Delete "USB-C Cable"
+Edit `StudyShop.Api/appsettings.json`:
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost,1433;Database=StudyShopDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True"
+  }
+}
+```
 
-### Orders Workflow
+### Vector Store (PostgreSQL)
 
-1. Navigate to Orders page (should be empty)
-2. Click "New Order"
-3. Add 2 items:
-   - Product: Laptop Computer, Quantity: 1
-   - Product: Wireless Mouse, Quantity: 2
-4. Submit
-5. View order details (total should be $1059.97)
-6. Try ordering more stock than available (error message appears)
+```json
+{
+  "VectorStore": {
+    "ConnectionString": "Host=localhost;Port=5432;Database=studyshop;Username=postgres;Password=postgres"
+  }
+}
+```
 
-## 📝 Swagger Documentation
+## 📝 Documentation
 
-Access the interactive API documentation at:
-**http://localhost:5170/swagger**
-
-- Browse all endpoints
-- See request/response schemas
-- Try endpoints directly in browser
-- Download OpenAPI JSON for code generation
-
-## 🔍 Troubleshooting
-
-### Backend won't start
-- Check .NET 9 SDK is installed: `dotnet --version`
-- Ensure port 5170 is not in use
-- Check console output for errors
-- See [MIGRATION-TO-DOTNET9.md](MIGRATION-TO-DOTNET9.md) if upgrading
-
-### Frontend won't generate API client
-- Ensure backend is running at http://localhost:5170
-- Run manually: `npm run gen:api`
-- Check `src/app/api/` directory is created
-
-### CORS errors in browser console
-- Verify `Program.cs` has CORS configured for `http://localhost:4200`
-- Clear browser cache and reload
-
-### Products not showing
-- Check backend seeded data in console output
-- Verify API at http://localhost:5170/api/products returns data
-- Check browser Network tab for failed requests
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed architecture overview
+- **[SWAGGER-EXPORT.md](SWAGGER-EXPORT.md)** - API code generation guide
+- **[DOCKER.md](DOCKER.md)** - Docker deployment guide
+- **[MIGRATION-TO-DOTNET9.md](MIGRATION-TO-DOTNET9.md)** - .NET 9 migration notes
 
 ## 🎓 Next Steps
 
-- ✅ **Upgraded to .NET 9** - Using latest features and performance improvements
-- ✅ **CQRS Pattern** - Commands and Queries implemented
-- ✅ **Minimal API** - Modern endpoint registration
-- Add authentication (JWT tokens)
-- Add pagination for orders
-- Implement user roles
-- Add unit tests for command/query handlers
-- Add Angular component tests
-- Deploy to cloud (Azure, AWS, etc.)
-
-## 📚 Additional Documentation
-
-- **[SWAGGER-EXPORT.md](SWAGGER-EXPORT.md)** - Guide for exporting Swagger JSON and generating TypeScript services
-- **[MIGRATION-TO-DOTNET9.md](MIGRATION-TO-DOTNET9.md)** - Migration guide from .NET 8 to .NET 9
-- **[CQRS-REFACTOR.md](StudyShop.Api/CQRS-REFACTOR.md)** - CQRS architecture details
-- **[DOCKER.md](DOCKER.md)** - Docker deployment guide
-- **[BUILD-STATUS.md](BUILD-STATUS.md)** - Current build status
-- **[DOCKER-SUCCESS.md](DOCKER-SUCCESS.md)** - Docker deployment status
+- [ ] Add GraphQL endpoint
+- [ ] Implement Neo4j for relationship queries
+- [ ] Add JWT authentication
+- [ ] Add integration tests for AI endpoints
+- [ ] Implement Redis for distributed caching
+- [ ] Add OpenTelemetry for observability
 
 ## 📄 License
 
 This is a learning project. Feel free to use and modify as needed.
-
-## 🤝 Contributing
-
-This is a self-contained learning resource. Experiment freely!
-

@@ -2,13 +2,23 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Copy csproj and restore dependencies
-COPY ["StudyShop.Api/StudyShop.Api.csproj", "StudyShop.Api/"]
+# Copy solution file and project files for dependency resolution
 COPY ["StudyShop.sln", "."]
-RUN dotnet restore "StudyShop.Api/StudyShop.Api.csproj"
+COPY ["StudyShop.Api/StudyShop.Api.csproj", "StudyShop.Api/"]
+COPY ["StudyShop.Application/StudyShop.Application.csproj", "StudyShop.Application/"]
+COPY ["StudyShop.Domain/StudyShop.Domain.csproj", "StudyShop.Domain/"]
+COPY ["StudyShop.Infrastructure/StudyShop.Infrastructure.csproj", "StudyShop.Infrastructure/"]
 
-# Copy everything else and build
+# Restore dependencies
+RUN dotnet restore "StudyShop.sln"
+
+# Copy source code for all projects
 COPY StudyShop.Api/ StudyShop.Api/
+COPY StudyShop.Application/ StudyShop.Application/
+COPY StudyShop.Domain/ StudyShop.Domain/
+COPY StudyShop.Infrastructure/ StudyShop.Infrastructure/
+
+# Build the solution
 WORKDIR "/src/StudyShop.Api"
 RUN dotnet build "StudyShop.Api.csproj" -c Release -o /app/build
 

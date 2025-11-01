@@ -20,6 +20,44 @@ services:
       retries: 10
       start_period: 30s
 
+  # Local LLM runtime (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: studyshop-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - studyshop-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  # Postgres with pgvector for embeddings storage
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: studyshop-postgres
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=studyshop
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - studyshop-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d studyshop"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
   # .NET 9 API Backend (CQRS + Minimal API)
   api:
     build:
@@ -33,11 +71,20 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - AllowedOrigins=http://localhost:4200;http://localhost:80
       - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=StudyShopDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=True
+      # Vector store and LLM configuration
+      - VectorStore__ConnectionString=Host=postgres;Port=5432;Database=studyshop;Username=postgres;Password=postgres
+      - LLM__BaseUrl=http://ollama:11434
+      - LLM__ChatModel=llama3.2:3b
+      - LLM__EmbeddingModel=bge-m3
     networks:
       - studyshop-network
     depends_on:
       sqlserver:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "exit 0"]
       interval: 30s
@@ -70,4 +117,6 @@ networks:
 
 volumes:
   studyshop-data:
+  ollama:
+  pgdata:
 

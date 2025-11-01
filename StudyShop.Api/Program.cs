@@ -1,12 +1,12 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using StudyShop.Api.Data;
 using StudyShop.Api.Endpoints;
-using StudyShop.Api.Features.Orders.Commands;
-using StudyShop.Api.Features.Products.Commands;
-using StudyShop.Api.Models;
 using FluentValidation;
 using System.Reflection;
+using StudyShop.Infrastructure;
+using StudyShop.Infrastructure.Data;
+using StudyShop.Domain.Models;
+using StudyShop.Application.Ai;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,14 +50,18 @@ builder.Services.AddCors(options =>
 });
 
 // Add MediatR (CQRS pattern mediator)
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
+    cfg.RegisterServicesFromAssembly(typeof(StudyShop.Application.DTOs.ProductDto).Assembly);
+});
 
 // Register MediatR pipeline behaviors (order matters - they execute in reverse order after handler)
-builder.Services.AddScoped(typeof(IPipelineBehavior<,>), typeof(StudyShop.Api.Features.Products.Behaviors.QueryCachingBehavior<,>));
-builder.Services.AddScoped(typeof(IPipelineBehavior<,>), typeof(StudyShop.Api.Features.Products.Behaviors.CacheInvalidationBehavior<,>));
+builder.Services.AddScoped(typeof(IPipelineBehavior<,>), typeof(StudyShop.Application.Features.Products.Behaviors.QueryCachingBehavior<,>));
+builder.Services.AddScoped(typeof(IPipelineBehavior<,>), typeof(StudyShop.Application.Features.Products.Behaviors.CacheInvalidationBehavior<,>));
 
 // Add FluentValidation
-builder.Services.AddValidatorsFromAssemblyContaining<CreateProductCommandValidator>();
+builder.Services.AddValidatorsFromAssembly(typeof(StudyShop.Application.Validators.CreateProductDtoValidator).Assembly);
 
 // Add Problem Details for RFC 7807
 builder.Services.AddProblemDetails();
@@ -65,22 +69,13 @@ builder.Services.AddProblemDetails();
 // Add memory caching
 builder.Services.AddMemoryCache();
 
-// Configure DbContext
-builder.Services.AddDbContext<StudyShopDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    
-    if (!string.IsNullOrEmpty(connectionString))
-    {
-        // Use SQL Server if connection string is provided
-        options.UseSqlServer(connectionString);
-    }
-    else
-    {
-        // Fallback to InMemory for development/testing
-        options.UseInMemoryDatabase("StudyShopDb");
-    }
-});
+// Infrastructure (DbContext, AI services, vector store)
+builder.Services.AddInfrastructure(builder.Configuration);
+
+// Register ProductEmbeddingIndexer background service
+builder.Services.AddHostedService<ProductEmbeddingIndexer>();
+
+// (AI services are registered via Infrastructure)
 
 var app = builder.Build();
 
@@ -172,6 +167,7 @@ app.UseCors("AllowAngular");
 // Register all API endpoints using extension methods
 app.MapProductsEndpoints();
 app.MapOrdersEndpoints();
+app.MapAiEndpoints();
 
 // Run the app
 // Listen on all interfaces (0.0.0.0) to accept connections from Docker host
@@ -188,5 +184,88 @@ Console.WriteLine();
 
 app.Run();
 
-// Expose Program for WebApplicationFactory in tests
+public static class AiEndpoints
+{
+    public static IEndpointRouteBuilder MapAiEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/ai/search", async (string q, IEmbeddingService emb, IVectorStore store, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(q)) return Results.BadRequest("Query 'q' is required.");
+            var vector = await emb.CreateEmbedding(q, ct);
+            var hits = await store.QueryProductsAsync(vector, 5, ct);
+            return Results.Ok(new { results = hits.Select(h => new { productId = h.productId, content = h.content, score = h.score }) });
+        });
+
+        app.MapPost("/ai/answer", async (AiAnswerRequest req, IEmbeddingService emb, IVectorStore store, ILlmService llm, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Question)) return Results.BadRequest("Question is required.");
+            var vector = await emb.CreateEmbedding(req.Question, ct);
+            var hits = await store.QueryProductsAsync(vector, 5, ct);
+            var context = string.Join("\n\n", hits.Select(h => $"- {h.content}"));
+            var prompt = $"You are a helpful assistant. Answer using ONLY the context below. If nothing is relevant, say you don't know.\n\nContext:\n{context}\n\nQuestion: {req.Question}\nAnswer:";
+            var chunks = new List<string>();
+            await foreach (var piece in llm.Generate(prompt, ct)) chunks.Add(piece);
+            return Results.Ok(new { answer = string.Join(string.Empty, chunks), citations = hits.Select(h => new { h.productId, h.score }) });
+        });
+
+        return app;
+    }
+}
+
+public sealed class AiAnswerRequest
+{
+    public string Question { get; set; } = string.Empty;
+}
+
+public sealed class ProductEmbeddingIndexer : BackgroundService
+{
+    private readonly IServiceProvider _sp;
+    private readonly ILogger<ProductEmbeddingIndexer> _logger;
+    public ProductEmbeddingIndexer(IServiceProvider sp, ILogger<ProductEmbeddingIndexer> logger)
+    {
+        _sp = sp; _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            // Wait a bit for Ollama to be ready
+            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            
+            using var scope = _sp.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<IVectorStore>();
+            var emb = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+            var db = scope.ServiceProvider.GetRequiredService<StudyShopDbContext>();
+
+            await store.EnsureSchemaAsync(stoppingToken);
+
+            var products = db.Products.Select(p => new { p.Id, p.Name }).ToList();
+            int chunkIndex = 0;
+            foreach (var p in products)
+            {
+                try
+                {
+                    var content = $"Name: {p.Name}";
+                    var vector = await emb.CreateEmbedding(content, stoppingToken);
+                    await store.UpsertProductEmbeddingAsync(p.Id, chunkIndex, content, vector, stoppingToken);
+                    chunkIndex++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to index product {ProductId}: {Error}", p.Id, ex.Message);
+                    // Continue with next product
+                }
+            }
+            _logger.LogInformation("Indexed {Count} products for semantic search", chunkIndex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ProductEmbeddingIndexer failed: {Error}. AI features may not be available.", ex.Message);
+            // Don't crash the host - just log the error
+        }
+    }
+}
+
+// Make Program class accessible for test projects
 public partial class Program { }

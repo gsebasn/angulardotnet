@@ -145,6 +145,50 @@ Infrastructure (EF, AI, External Services)
 - ✅ **Presentation** depends on Application (uses MediatR, DTOs)
 - ✅ **Vertical Slices** organize features by business capability (Products, Orders, AI)
 
+## 🔌 Development Ports
+
+All ports used in development mode:
+
+| Service | Port | Purpose | URL |
+|---------|------|---------|-----|
+| **Angular UI** | `4200` | Frontend application | http://localhost:4200 |
+| **.NET API** | `5170` | REST API backend | http://localhost:5170 |
+| **Swagger UI** | `5170/swagger` | API documentation | http://localhost:5170/swagger |
+| **SQL Server** | `1433` | Primary database | `localhost,1433` |
+| **PostgreSQL** | `5432` | Vector database (pgvector) | `localhost:5432` |
+| **Ollama LLM** | `11434` | Local LLM service | http://localhost:11434 |
+
+### Docker Container Ports
+
+When running with Docker Compose, internal container ports are mapped to host ports:
+
+| Container | Internal Port | Host Port | Access |
+|-----------|--------------|-----------|-------|
+| `studyshop-ui` | 80 | 4200 | http://localhost:4200 |
+| `studyshop-api` | 8080 | 5170 | http://localhost:5170 |
+| `studyshop-sqlserver` | 1433 | 1433 | `localhost,1433` |
+| `studyshop-postgres` | 5432 | 5432 | `localhost:5432` |
+| `studyshop-ollama` | 11434 | 11434 | http://localhost:11434 |
+
+### Port Conflicts
+
+If any ports are already in use, you can modify them in:
+
+- **Docker**: Edit `docker-compose.yml` port mappings
+- **Local API**: Edit `StudyShop.Api/Program.cs` (line ~171) - change `app.Urls.Add("http://0.0.0.0:5170")`
+- **Local UI**: Edit `studyshop-ui/angular.json` or use `ng serve --port <PORT>`
+
+### Quick Port Checks
+
+```bash
+# Check if ports are available
+lsof -i :4200  # Angular UI
+lsof -i :5170  # .NET API
+lsof -i :1433  # SQL Server
+lsof -i :5432  # PostgreSQL
+lsof -i :11434 # Ollama
+```
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -165,12 +209,7 @@ curl -X POST http://localhost:11434/api/pull -d '{"name":"llama3.2:3b"}'
 curl -X POST http://localhost:11434/api/pull -d '{"name":"bge-m3"}'
 ```
 
-This starts:
-- ✅ SQL Server (port 1433)
-- ✅ PostgreSQL + pgvector (port 5432)
-- ✅ Ollama LLM (port 11434)
-- ✅ .NET 9 API (port 5170)
-- ✅ Angular UI (port 4200)
+This starts all services with ports mapped as listed above.
 
 ### Step 2: Start Locally (Alternative)
 
@@ -183,6 +222,8 @@ dotnet run
 # Swagger: http://localhost:5170/swagger
 ```
 
+> **Note**: When running locally, ensure SQL Server is running on port 1433, or the API will use an in-memory database.
+
 #### Frontend
 ```bash
 cd studyshop-ui
@@ -191,6 +232,8 @@ npm run gen:api  # Generate TypeScript client
 npm start
 # UI: http://localhost:4200
 ```
+
+> **Note**: The frontend expects the API at `http://localhost:5170`. Update `studyshop-ui/src/app/environments/environment.ts` if using a different port.
 
 ## 🧠 AI/RAG Features
 
